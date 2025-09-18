@@ -29,10 +29,14 @@ export GEMINI_API_KEY=your_key_here
 ## Run
 
 ```bash
-python ai_agent.py
+python ai_agent.py [--dry-run] [--auto-approve]
 ```
 
 Type a natural language request like "show disk usage".
+
+Flags:
+- `--dry-run`: plan and print commands, do not execute
+- `--auto-approve`: skip approval prompts for critical actions
 
 ## Notes
 

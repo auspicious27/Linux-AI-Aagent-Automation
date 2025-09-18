@@ -26,6 +26,7 @@ from dotenv import load_dotenv
 from string import Template
 import platform
 from pathlib import Path
+import argparse
 
 # -----------------------------
 # Configuration
@@ -37,10 +38,14 @@ API_KEY = os.environ.get("GEMINI_API_KEY")
 MODEL = os.environ.get("GEMINI_MODEL", "gemini-2.0-flash")   # as requested
 GEN_API_BASE = "https://generativelanguage.googleapis.com/v1beta"  # use official REST base for generateContent
 LOGFILE = "agent.log"
+AUTO_APPROVE = False
+DRY_RUN = False
 
 # Safety configuration
 WHITELIST_COMMAND_PATTERNS = [
     r'^(free|df|uptime|top|htop|ps|uname)\b',          # monitoring
+    r'^(ls|head|tail)\b',                              # file listing/view
+    r'^(ip|ss|ping)\b',                                # networking
     r'^(systemctl|service)\b',                        # service management
     r'^(dnf|apt|yum|apt-get)\b',                      # package management (install/remove)
     r'^(firewall-cmd|ufw)\b',                         # firewall
@@ -236,6 +241,9 @@ def request_approval(human_message: str) -> bool:
     Simple console confirmation. For workshop/demo. In production use
     proper approval workflow (web UI, email, or RBAC approval).
     """
+    if AUTO_APPROVE:
+        logging.info("Auto-approve enabled; skipping prompt")
+        return True
     print("\n===== ACTION REQUIRES APPROVAL =====")
     print(human_message)
     print("Approve? (y/N): ", end="", flush=True)
@@ -251,12 +259,16 @@ def interpret_request(nl: str) -> Dict[str, Any]:
     llm_text = call_gemini(prompt, temperature=0.0)
     logging.info("LLM returned text: " + (llm_text[:400] if llm_text else "<empty>"))
     # Attempt to parse JSON
+    # Remove common code fences if present
+    if llm_text and llm_text.strip().startswith("```"):
+        llm_text = re.sub(r'^```(?:json)?\n', '', llm_text.strip())
+        llm_text = re.sub(r'```\s*$', '', llm_text)
     try:
         parsed = json.loads(llm_text)
     except Exception as e:
         logging.error("Failed to parse LLM JSON response: " + str(e))
         # fallback: try to extract JSON substring
-        m = re.search(r'\{.*\}', llm_text, re.S)
+        m = re.search(r'\{.*\}', llm_text or '', re.S)
         if m:
             try:
                 parsed = json.loads(m.group(0))
@@ -335,9 +347,10 @@ def handle_request(nl: str):
     for cmd in commands:
         # Normalize command: drop pipes and adapt per OS
         original_cmd = cmd
-        # Enforce no pipes: take only the first segment
-        if '|' in cmd:
-            cmd = cmd.split('|', 1)[0].strip()
+        # Enforce no pipes or chaining: take only the first segment
+        for splitter in ['|', '&&', '||', ';']:
+            if splitter in cmd:
+                cmd = cmd.split(splitter, 1)[0].strip()
 
         # Platform-specific fixes
         system_name = platform.system()
@@ -368,9 +381,12 @@ def handle_request(nl: str):
                 executed_results.append({"command": cmd, "status": "denied_by_human"})
                 continue
 
-        # Execute command (with limited automatic remediation)
-        res = execute_with_retry(cmd)
-        executed_results.append({"command": cmd, "status": "executed", "result": res})
+        if DRY_RUN:
+            executed_results.append({"command": cmd, "status": "dry_run", "result": {"command": cmd, "returncode": None, "stdout": "", "stderr": ""}})
+        else:
+            # Execute command (with limited automatic remediation)
+            res = execute_with_retry(cmd)
+            executed_results.append({"command": cmd, "status": "executed", "result": res})
 
     # Audit log entry
     audit = {
@@ -387,6 +403,14 @@ def handle_request(nl: str):
 # Demo / CLI
 # -----------------------------
 def main():
+    global AUTO_APPROVE, DRY_RUN
+    parser = argparse.ArgumentParser(description="Linux AI Agent")
+    parser.add_argument("--auto-approve", action="store_true", help="Auto-approve critical actions without prompting")
+    parser.add_argument("--dry-run", action="store_true", help="Print/plan commands but do not execute")
+    args, unknown = parser.parse_known_args()
+    AUTO_APPROVE = bool(args.auto_approve)
+    DRY_RUN = bool(args.dry_run)
+
     print("Linux AI Agent (demo). Type 'exit' to quit.")
     while True:
         try:
