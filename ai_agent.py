@@ -41,6 +41,55 @@ LOGFILE = "agent.log"
 AUTO_APPROVE = False
 DRY_RUN = False
 
+# Built-in example prompts for quick start
+EXAMPLE_PROMPTS: List[str] = [
+    # System info
+    "show OS version and kernel",
+    "show uptime and load average",
+    "list logged-in users",
+    # Disk/memory/CPU
+    "show disk usage with mount points",
+    "show memory usage",
+    "top 10 processes by CPU",
+    # Networking
+    "show IP addresses and interfaces",
+    "ping 8.8.8.8",
+    "show open ports",
+    # Services
+    "check status of sshd",
+    "restart chronyd service",
+    "enable nginx to start on boot",
+    # Packages
+    "install curl",
+    "remove nginx",
+    "upgrade all packages",
+    # Users
+    "create user demo",
+    "add demo to wheel group",
+    "lock user demo",
+    # Firewall
+    "show firewall rules",
+    "open tcp port 8080",
+    "close tcp port 8080",
+    # Logs
+    "tail last 100 lines of system journal",
+    "show sshd logs for today",
+    "check last reboot reason",
+    # Files (read-only)
+    "show last 50 lines of /var/log/messages",
+    "print /etc/os-release",
+    # Containers
+    "list running containers",
+    "show logs of container web",
+    "restart container web",
+]
+
+def print_examples() -> None:
+    print("\n== Example prompts ==")
+    for p in EXAMPLE_PROMPTS:
+        print(f"- {p}")
+    print("\nTip: type 'help' anytime to print this list again.\n")
+
 # Safety configuration
 WHITELIST_COMMAND_PATTERNS = [
     r'^(free|df|uptime|top|htop|ps|uname)\b',          # monitoring
@@ -407,9 +456,14 @@ def main():
     parser = argparse.ArgumentParser(description="Linux AI Agent")
     parser.add_argument("--auto-approve", action="store_true", help="Auto-approve critical actions without prompting")
     parser.add_argument("--dry-run", action="store_true", help="Print/plan commands but do not execute")
+    parser.add_argument("--examples", action="store_true", help="Print example prompts and exit")
     args, unknown = parser.parse_known_args()
     AUTO_APPROVE = bool(args.auto_approve)
     DRY_RUN = bool(args.dry_run)
+
+    if args.examples:
+        print_examples()
+        return
 
     print("Linux AI Agent (demo). Type 'exit' to quit.")
     while True:
@@ -422,6 +476,9 @@ def main():
             continue
         if nl.lower() in ("exit", "quit"):
             break
+        if nl.lower() in ("help", "examples"):
+            print_examples()
+            continue
         try:
             audit = handle_request(nl)
             print("\n== Audit summary ==")
