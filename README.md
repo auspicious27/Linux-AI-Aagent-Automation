@@ -2,6 +2,13 @@
 
 Minimal workshop-ready Linux AI Agent that sends natural language requests to Gemini 2.0 Flash, extracts a structured JSON intent, applies safety checks and optional approval, then executes allowed commands with full logging.
 
+## Clone
+
+```bash
+git clone https://github.com/auspicious27/Linux-AI-Aagent-Automation.git
+cd Linux-AI-Aagent-Automation
+```
+
 ## Setup
 
 1) Python 3.9+
