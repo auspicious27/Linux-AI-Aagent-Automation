@@ -293,10 +293,14 @@ def handle_request(nl: str):
             c = re.sub(r'^apt\s+update\b', 'dnf -y makecache', c)
             c = re.sub(r'^apt-get\s+install\b', 'dnf install', c)
             c = re.sub(r'^apt\s+install\b', 'dnf install', c)
+            c = re.sub(r'^apt-get\s+purge\b', 'dnf remove', c)
+            c = re.sub(r'^apt\s+purge\b', 'dnf remove', c)
             c = re.sub(r'^apt-get\s+remove\b', 'dnf remove', c)
             c = re.sub(r'^apt\s+remove\b', 'dnf remove', c)
             c = re.sub(r'^apt-get\s+upgrade\b', 'dnf upgrade', c)
             c = re.sub(r'^apt\s+upgrade\b', 'dnf upgrade', c)
+            c = re.sub(r'^apt-get\s+autoremove\b', 'dnf autoremove', c)
+            c = re.sub(r'^apt\s+autoremove\b', 'dnf autoremove', c)
             # Convert yum to dnf
             c = re.sub(r'^yum\b', 'dnf', c)
         elif pkg_mgr in ("apt", "unknown"):
