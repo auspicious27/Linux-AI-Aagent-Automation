@@ -25,6 +25,7 @@ import requests
 from dotenv import load_dotenv
 from string import Template
 import platform
+from pathlib import Path
 
 # -----------------------------
 # Configuration
@@ -256,6 +257,56 @@ def handle_request(nl: str):
     requires_approval_flag = parsed.get("requires_approval", False)
 
     executed_results = []
+    # Detect package manager based on OS
+    def detect_package_manager() -> str:
+        try:
+            os_release = {}
+            path = "/etc/os-release"
+            if os.path.exists(path):
+                with open(path, "r", encoding="utf-8") as f:
+                    for line in f:
+                        if "=" in line:
+                            k, v = line.strip().split("=", 1)
+                            os_release[k] = v.strip('"')
+            os_id = (os_release.get("ID") or "").lower()
+            id_like = (os_release.get("ID_LIKE") or "").lower()
+            if any(x in (os_id + " " + id_like) for x in ["rhel", "fedora", "centos", "rocky", "almalinux"]):
+                return "dnf"
+            if any(x in (os_id + " " + id_like) for x in ["debian", "ubuntu", "linuxmint"]):
+                return "apt"
+        except Exception:
+            pass
+        # Fallbacks by existence
+        if shutil.which("dnf"):
+            return "dnf"
+        if shutil.which("apt"):
+            return "apt"
+        if shutil.which("yum"):
+            return "yum"
+        return "unknown"
+
+    def normalize_pkg_command(command: str, pkg_mgr: str) -> str:
+        c = command
+        # Map apt/apt-get to dnf when needed
+        if pkg_mgr == "dnf":
+            c = re.sub(r'^apt-get\s+update\b', 'dnf -y makecache', c)
+            c = re.sub(r'^apt\s+update\b', 'dnf -y makecache', c)
+            c = re.sub(r'^apt-get\s+install\b', 'dnf install', c)
+            c = re.sub(r'^apt\s+install\b', 'dnf install', c)
+            c = re.sub(r'^apt-get\s+remove\b', 'dnf remove', c)
+            c = re.sub(r'^apt\s+remove\b', 'dnf remove', c)
+            c = re.sub(r'^apt-get\s+upgrade\b', 'dnf upgrade', c)
+            c = re.sub(r'^apt\s+upgrade\b', 'dnf upgrade', c)
+            # Convert yum to dnf
+            c = re.sub(r'^yum\b', 'dnf', c)
+        elif pkg_mgr in ("apt", "unknown"):
+            # Normalize apt-get to apt
+            c = re.sub(r'^apt-get\b', 'apt', c)
+        return c
+
+    import shutil  # local import to avoid top clutter
+    pkg_mgr = detect_package_manager()
+
     for cmd in commands:
         # Normalize command: drop pipes and adapt per OS
         original_cmd = cmd
@@ -269,6 +320,10 @@ def handle_request(nl: str):
             # macOS 'top' uses -l <samples>
             cmd = re.sub(r"^top\s+-b?n?1\b", "top -l 1", cmd)
             cmd = re.sub(r"^top\s+-b\s+-n\s*1\b", "top -l 1", cmd)
+
+        # Package manager normalization
+        cmd_after_top = cmd
+        cmd = normalize_pkg_command(cmd, pkg_mgr)
 
         if cmd != original_cmd:
             logging.info(f"Normalized command from '{original_cmd}' to '{cmd}' for safety/compatibility")
