@@ -207,6 +207,27 @@ def run_command(command: str, cwd: str = "/", timeout: int = 120) -> Dict[str, A
     logging.info(f"Finished: {command} rc={result['returncode']}")
     return result
 
+def execute_with_retry(command: str) -> Dict[str, Any]:
+    """
+    Run a command, and on specific known recoverable failures, attempt remediation
+    then retry once. Currently handles:
+      - RHEL: dnf install pkg → 'Unable to find a match' → install epel-release then retry
+    """
+    result = run_command(command)
+    # Retry logic for dnf install missing package due to EPEL
+    try:
+        is_dnf_install = bool(re.match(r"^dnf\s+.*install\b", command))
+    except Exception:
+        is_dnf_install = False
+    if is_dnf_install and result.get("returncode", 0) != 0:
+        combined = f"{result.get('stdout','')}\n{result.get('stderr','')}"
+        if "Unable to find a match" in combined:
+            logging.info("Attempting to install epel-release and retry the dnf install")
+            _ = run_command("dnf -y install epel-release")
+            # Retry original command once
+            result = run_command(command)
+    return result
+
 # -----------------------------
 # Approval UI (console-based)
 # -----------------------------
@@ -347,8 +368,8 @@ def handle_request(nl: str):
                 executed_results.append({"command": cmd, "status": "denied_by_human"})
                 continue
 
-        # Execute command
-        res = run_command(cmd)
+        # Execute command (with limited automatic remediation)
+        res = execute_with_retry(cmd)
         executed_results.append({"command": cmd, "status": "executed", "result": res})
 
     # Audit log entry
