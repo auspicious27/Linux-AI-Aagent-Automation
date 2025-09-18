@@ -70,3 +70,56 @@ Copy-paste any of these after you start the agent.
   - "remove container named web"
 
 Tip: If something is blocked as "not whitelisted", rephrase as a standard admin command (service, package, firewall, user, docker, logs, read-only file).
+
+## Linux prompts cheat-sheet (basics)
+
+- System info
+  - "show OS version and kernel"
+  - "show uptime and load average"
+  - "list logged-in users"
+
+- Disk, memory, CPU
+  - "show disk usage with mount points"
+  - "show memory usage"
+  - "top 10 processes by CPU"
+
+- Networking
+  - "show IP addresses and interfaces"
+  - "ping 8.8.8.8"
+  - "show open ports"
+
+- Services
+  - "check status of sshd"
+  - "restart chronyd service"
+  - "enable nginx to start on boot"
+
+- Packages (auto-maps apt/yum to dnf on RHEL)
+  - "install curl"
+  - "remove nginx"
+  - "upgrade all packages"
+
+- Users and groups (approval expected)
+  - "create user demo"
+  - "add demo to wheel group"
+  - "lock user demo"
+
+- Firewall
+  - "show firewall rules"
+  - "open tcp port 8080"
+  - "close tcp port 8080"
+
+- Logs and troubleshooting
+  - "tail last 100 lines of system journal"
+  - "show sshd logs for today"
+  - "check last reboot reason"
+
+- Files (read-only)
+  - "show last 50 lines of /var/log/messages"
+  - "print /etc/os-release"
+
+- Containers (Docker/Podman)
+  - "list running containers"
+  - "show logs of container web"
+  - "restart container web"
+
+Note: Destructive actions may trigger approval. On RHEL, the agent converts Debian-style commands (apt) into dnf equivalents and can auto-enable EPEL when needed.
